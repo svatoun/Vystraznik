@@ -1,4 +1,6 @@
 
+const boolean DEBUG = true;
+
 // Definice pinů
 const int pozitivni = 3;
 const int rozdelovac = 4;
@@ -15,8 +17,9 @@ int delkaZvonec = 200;
 
 void setup() {
   Serial.begin(115200);
-  pinMode(prepUzavreni, INPUT);
-  pinMode(prepZvonec, INPUT);
+  pinMode(prepUzavreni, INPUT_PULLUP);
+  pinMode(prepZvonec, INPUT_PULLUP);
+
   pinMode(pozitivni, OUTPUT);
   pinMode(rozdelovac, OUTPUT);
   pinMode(vystraha, OUTPUT);
@@ -38,10 +41,10 @@ boolean stavZvonec = false;     // false - zvonec off, true - zvonec on. Ruzne p
 
 long t = 0;
 
-boolean kontrolaVstupu(boolean &stav, long& zakmit, int pin) {
+boolean kontrolaVstupu(boolean &stav, long& zakmit, int pin, const char* nazev) {
   boolean noveSepnuto = false;
-  // boolean vstup = digitalRead(pin); // Pro spinani pomoci 0V, a INPUT_PULLUP
-  boolean vstup = !digitalRead(pin); // Pro spinani pomoci 5VV, a INPUT
+  boolean vstup = digitalRead(pin); // Pro spinani pomoci 0V, a INPUT_PULLUP
+  //boolean vstup = !digitalRead(pin); // Pro spinani pomoci 5VV, a INPUT
 
   // vstup musi byt shodny v case "T" a "T+20ms", aby se vyhodnotilo jako sepnuti a ne nahodny prekmit.
   if (zakmit + 20 < t) {
@@ -51,6 +54,10 @@ boolean kontrolaVstupu(boolean &stav, long& zakmit, int pin) {
         // druhy odecet, souhlasny -> stav se meni
         stav = s;
         noveSepnuto = stav; 
+        if (DEBUG) {
+          Serial.print(nazev);
+          Serial.println(stav ? ": zapnuto" : ": vypnuto");
+        }
       } else {
         zakmit = t;
       }
@@ -66,12 +73,12 @@ boolean kontrolaVstupu(boolean &stav, long& zakmit, int pin) {
 
 void loop() {
   t = millis();
-  if (kontrolaVstupu(stavPrepUzavreni, zakmitPrepUzavreni, prepUzavreni)) {
+  if (kontrolaVstupu(stavPrepUzavreni, zakmitPrepUzavreni, prepUzavreni, "Uzavreni")) {
     posledniVystraha = stavZvonec ? posledniZvonecSepnuti : 0;   // synchronizujemne se zvoncem
     stavVystraznik = false; // inverze vychoziho stavu vystrazniku, ihned se zmeni
   }
 
-  if (kontrolaVstupu(stavPrepZvonec, zakmitPrepZvonec, prepZvonec)) {
+  if (kontrolaVstupu(stavPrepZvonec, zakmitPrepZvonec, prepZvonec, "Zvonec")) {
     stavZvonec = false;
     posledniZvonec = stavPrepUzavreni ? (posledniVystraha + delkaZvonec) : 0; // synchronizujeme s vystrahou
   }
@@ -81,6 +88,9 @@ void loop() {
     digitalWrite(rozdelovac, HIGH);  // Aktivace rozdělovače
     digitalWrite(pozitivni, LOW);    //
     if ((t < kmitaniVystraha) || (posledniVystraha < t - kmitaniVystraha)) {
+      if (DEBUG) {
+        Serial.print("Zmena vystrazniku: "); Serial.println(t);
+      }
       // Uplynul cas, zmenima stav vystrazniku
       stavVystraznik = !stavVystraznik;
       digitalWrite(vystraha, stavVystraznik ? HIGH : LOW);
@@ -89,6 +99,9 @@ void loop() {
   } else {
     digitalWrite(rozdelovac, LOW);
     if ((t < kmitaniPozitivni) || (posledniPozitiv < t - kmitaniPozitivni)) {
+      if (DEBUG) {
+        Serial.print("Zmena pozitivky: "); Serial.println(t);
+      }
       stavPozitiv = !stavPozitiv;
       digitalWrite(pozitivni, stavPozitiv ? HIGH : LOW);
       posledniPozitiv = t;
@@ -105,7 +118,14 @@ void loop() {
     if (posledniZvonec + limit < t) {
       stavZvonec = !stavZvonec;
       if (stavZvonec) {
+        if (DEBUG) {
+          Serial.println("Zvonec on");
+        }
         posledniZvonecSepnuti = t;
+      } else {
+        if (DEBUG) {
+          Serial.println("Zvonec off");
+        }
       }
       posledniZvonec = t;
       digitalWrite(zvonec, stavZvonec ? HIGH : LOW);
