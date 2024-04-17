@@ -9,17 +9,31 @@ const int zvonec = 6;
 const int prepUzavreni = 7;
 const int prepZvonec = 8;
 
+// true, pokud se rele spina 0V (LOW); false, pokud se spina 5V (HIGH)
+const boolean releOnLow = true;
+
 // Časové konstanty
 int kmitaniPozitivni = 750;
 int kmitaniVystraha = 500;
 int prodlevaZvonec = kmitaniVystraha; // zvonec cikne pokazde pri prepnuti vystraznych svetel
 int delkaZvonec = 200;
 
+// spinaci/vypinaci hodnoty pro rele, podle releOnLow
+const int releOn = releOnLow ? LOW : HIGH;
+const int releOff = releOnLow ? HIGH : LOW;
+
+
 void setup() {
   Serial.begin(115200);
   pinMode(prepUzavreni, INPUT_PULLUP);
   pinMode(prepZvonec, INPUT_PULLUP);
 
+  digitalWrite(pozitivni, releOff);
+  digitalWrite(rozdelovac, releOff);
+  digitalWrite(vystraha, releOff);
+  digitalWrite(zvonec, releOff);
+
+  // nejprve nastavit vystupni uroven, a az pak piny na vystup, jinak by pri on=LOW mohlo kratkou dobu sepnout pri startu rele.
   pinMode(pozitivni, OUTPUT);
   pinMode(rozdelovac, OUTPUT);
   pinMode(vystraha, OUTPUT);
@@ -58,6 +72,7 @@ boolean kontrolaVstupu(boolean &stav, long& zakmit, int pin, const char* nazev) 
           Serial.print(nazev);
           Serial.println(stav ? ": zapnuto" : ": vypnuto");
         }
+        zakmit = 0;
       } else {
         zakmit = t;
       }
@@ -85,25 +100,25 @@ void loop() {
 
   // Pozitivní světlo
   if (stavPrepUzavreni) {
-    digitalWrite(rozdelovac, HIGH);  // Aktivace rozdělovače
-    digitalWrite(pozitivni, LOW);    //
+    digitalWrite(rozdelovac, releOn);  // Aktivace rozdělovače
+    digitalWrite(pozitivni, releOff);    //
     if ((t < kmitaniVystraha) || (posledniVystraha < t - kmitaniVystraha)) {
       if (DEBUG) {
         Serial.print("Zmena vystrazniku: "); Serial.println(t);
       }
       // Uplynul cas, zmenima stav vystrazniku
       stavVystraznik = !stavVystraznik;
-      digitalWrite(vystraha, stavVystraznik ? HIGH : LOW);
+      digitalWrite(vystraha, stavVystraznik ? releOn : releOff);
       posledniVystraha = t;
     }
   } else {
-    digitalWrite(rozdelovac, LOW);
+    digitalWrite(rozdelovac, releOff);
     if ((t < kmitaniPozitivni) || (posledniPozitiv < t - kmitaniPozitivni)) {
       if (DEBUG) {
         Serial.print("Zmena pozitivky: "); Serial.println(t);
       }
       stavPozitiv = !stavPozitiv;
-      digitalWrite(pozitivni, stavPozitiv ? HIGH : LOW);
+      digitalWrite(pozitivni, stavPozitiv ? releOn : releOff);
       posledniPozitiv = t;
     }
   }
@@ -128,10 +143,10 @@ void loop() {
         }
       }
       posledniZvonec = t;
-      digitalWrite(zvonec, stavZvonec ? HIGH : LOW);
+      digitalWrite(zvonec, stavZvonec ? releOn : releOff);
     }
   } else {
     stavZvonec = false;
-    digitalWrite(zvonec, LOW);
+    digitalWrite(zvonec, releOff);
   }
 }
